@@ -85,7 +85,10 @@ export default function Main({ tab }: { tab: string }) {
 
   if (tab === 'my-cryptocurrencies' && favoriteCryptos.length === 0) {
     return (
-      <Typography sx={{ mt: 'calc(35vh)', textAlign: 'center' }} variant="h6">
+      <Typography
+        sx={{ mt: 'calc(35vh)', textAlign: 'center', color: '#fff' }}
+        variant="h6"
+      >
         Currently, you have no favorite cryptocurrencies.
       </Typography>
     )
