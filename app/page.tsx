@@ -25,33 +25,3 @@ export default function Home() {
     </Box>
   )
 }
-
-// import PickFav from "@/components/pick-fav";
-// import MyCrypto from "@/components/my-crypto";
-
-// import * as React from 'react';
-// import { AppBar, Toolbar } from "@mui/material";
-// import Typography from '@mui/material/Typography';
-// import Main from "@/components/main";
-
-// export default function Home() {
-//   const num = 10
-
-//   return (
-//     <main className="flex flex-col items-center">
-//       <AppBar position="relative">
-//           <Toolbar>
-//           <Typography variant="h4" component="div" sx={{ flexGrow: 1 }}>
-//             Title
-//           </Typography>
-//           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-//             My wallet USD value: {num}
-//           </Typography>
-//           </Toolbar>
-//       </AppBar>
-//       <Main />
-//       <PickFav />
-//       <MyCrypto />
-//     </main>
-//   );
-// }
