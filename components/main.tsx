@@ -1,5 +1,17 @@
-import React, { useState } from 'react'
-import { Typography, Card, CardContent, IconButton } from '@mui/material'
+'use client'
+
+import React, { useEffect, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import { RootState } from '@/store'
+import { toggleFavorite } from '@/store/favoritesSlice'
+import {
+  Typography,
+  Card,
+  CardContent,
+  IconButton,
+  TextField,
+  Button,
+} from '@mui/material'
 import {
   ArrowBack,
   ArrowForward,
@@ -29,74 +41,128 @@ const cryptocurrencies = [
   },
 ]
 
-export default function Main() {
-  const [selected, setSelected] = useState(0)
-  const [favorites, setFavorites] = useState<number[]>([])
+export default function Main({ tab }: { tab: string }) {
+  const favorites = useSelector((state: RootState) => state.favorites.favorites)
+  const dispatch = useDispatch()
 
+  // Filter cryptocurrencies based on favorites when in "My Cryptocurrencies"
+  const favoriteCryptos = cryptocurrencies.filter((_, index) =>
+    favorites.includes(index),
+  )
+  const currentList =
+    tab === 'my-cryptocurrencies' ? favoriteCryptos : cryptocurrencies
+
+  const [selected, setSelected] = useState(0)
+
+  // Reset selected index when tab changes
+  useEffect(() => {
+    setSelected(0)
+  }, [tab])
+
+  // Handle selection within the current list safely
   const handleNext = () =>
-    setSelected((prev) => (prev + 1) % cryptocurrencies.length)
+    setSelected((prev) => (prev + 1) % currentList.length)
   const handlePrev = () =>
-    setSelected(
-      (prev) => (prev - 1 + cryptocurrencies.length) % cryptocurrencies.length,
-    )
-  const toggleFavorite = (index: number) => {
-    setFavorites((prev) =>
-      prev.includes(index)
-        ? prev.filter((fav) => fav !== index)
-        : [...prev, index],
+    setSelected((prev) => (prev - 1 + currentList.length) % currentList.length)
+
+  // If "My Cryptocurrencies" is selected and there are no favorites, show message
+  if (tab === 'my-cryptocurrencies' && favoriteCryptos.length === 0) {
+    return (
+      <Typography sx={{ mt: 'calc(35vh)', textAlign: 'center' }} variant="h6">
+        Currently, you have no favorite cryptocurrencies.
+      </Typography>
     )
   }
 
+  // Ensure we don't access undefined index
+  if (!currentList[selected]) {
+    return null
+  }
+
   return (
-    <div>
-      <Box component="main" sx={{ flexGrow: 1, p: 3, textAlign: 'center' }}>
-        <Typography variant="h4">Pick favourites</Typography>
-        <Box display="flex" justifyContent="center" alignItems="center" mt={3}>
-          <IconButton onClick={handlePrev}>
-            <ArrowBack />
-          </IconButton>
-          <Card
-            sx={{
-              minWidth: 275,
-              p: 2,
-              textAlign: 'center',
-              background: '#333',
-              color: '#fff',
-            }}
-          >
-            <CardContent>
+    <Box component="main" sx={{ flexGrow: 1, p: 3, textAlign: 'center' }}>
+      <Typography variant="h4">
+        {tab === 'pick-favourites' ? 'Pick favourites' : 'My cryptocurrencies'}
+      </Typography>
+
+      {/* Display Card */}
+      <Box display="flex" justifyContent="center" alignItems="center" mt={3}>
+        <Card
+          sx={{
+            minWidth: 275,
+            minHeight: 300,
+            p: 2,
+            textAlign: 'center',
+            background: '#333',
+            color: '#fff',
+          }}
+        >
+          <CardContent>
+            <Box
+              display="flex"
+              justifyContent="center"
+              alignItems="center"
+              minHeight={100}
+            >
               <img
-                src={cryptocurrencies[selected].icon}
-                alt={cryptocurrencies[selected].name}
+                src={currentList[selected].icon}
+                alt={currentList[selected].name}
                 width={50}
                 height={50}
               />
-              <Typography variant="h6">
-                {cryptocurrencies[selected].name}
-              </Typography>
-              <Typography>
-                Current price: {cryptocurrencies[selected].price}
-              </Typography>
-              <Typography>
-                Last check: {cryptocurrencies[selected].lastCheck}
-              </Typography>
+            </Box>
+            <Typography variant="h6">{currentList[selected].name}</Typography>
+            <Typography>
+              Current price: {currentList[selected].price}
+            </Typography>
+
+            {tab === 'pick-favourites' ? (
               <IconButton
-                onClick={() => toggleFavorite(selected)}
+                onClick={() =>
+                  dispatch(
+                    toggleFavorite(
+                      cryptocurrencies.indexOf(currentList[selected]),
+                    ),
+                  )
+                }
                 color="error"
               >
-                {favorites.includes(selected) ? (
+                {favorites.includes(
+                  cryptocurrencies.indexOf(currentList[selected]),
+                ) ? (
                   <Favorite />
                 ) : (
                   <FavoriteBorder />
                 )}
               </IconButton>
-            </CardContent>
-          </Card>
-          <IconButton onClick={handleNext}>
-            <ArrowForward />
-          </IconButton>
-        </Box>
+            ) : (
+              <>
+                <Typography>
+                  Value in USD:{' '}
+                  {parseFloat(currentList[selected].price.replace('$', '')) *
+                    10}
+                </Typography>
+                <TextField label="Amount" fullWidth margin="dense" />
+                <TextField label="Unit" fullWidth margin="dense" />
+                <TextField label="Comment" fullWidth margin="dense" />
+                <Button variant="contained" color="success">
+                  Submit
+                </Button>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </Box>
-    </div>
+
+      {/* Navigation buttons */}
+      <Box display="flex" justifyContent="center" alignItems="center" mt={3}>
+        <IconButton onClick={handlePrev} disabled={currentList.length <= 1}>
+          <ArrowBack sx={{ color: '#fff' }} />
+        </IconButton>
+        <IconButton onClick={handleNext} disabled={currentList.length <= 1}>
+          <ArrowForward sx={{ color: '#fff' }} />
+        </IconButton>
+      </Box>
+    </Box>
   )
 }
