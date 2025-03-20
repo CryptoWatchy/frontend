@@ -11,6 +11,8 @@ import {
   IconButton,
   TextField,
   Button,
+  MenuItem,
+  Select,
 } from '@mui/material'
 import {
   ArrowBack,
@@ -19,31 +21,53 @@ import {
   Favorite,
 } from '@mui/icons-material'
 import Box from '@mui/material/Box'
+import {
+  getTokens,
+  updateFavoriteStatus,
+  saveTokenTransaction,
+} from '@/utils/apiService'
+import { CreateTokenTxDto, UpdateFavoriteDto } from '@/interfaces/types'
 
-const cryptocurrencies = [
-  {
-    name: 'Ethereum (ETH)',
-    price: '$93,200.00',
-    lastCheck: '12/31/2024 8:20 p.m.',
-    icon: 'https://cryptologos.cc/logos/ethereum-eth-logo.png?v=026',
-  },
-  {
-    name: 'Bitcoin (BTC)',
-    price: '$3,200.00',
-    lastCheck: '12/31/2024 8:20 p.m.',
-    icon: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png?v=026',
-  },
-  {
-    name: 'Solana (SOL)',
-    price: '$200.00',
-    lastCheck: '12/31/2024 8:20 p.m.',
-    icon: 'https://cryptologos.cc/logos/solana-sol-logo.png?v=026',
-  },
-]
+const icons: Record<string, string> = {
+  Bitcoin: 'https://cryptologos.cc/logos/bitcoin-btc-logo.png?v=026',
+  Ethereum: 'https://cryptologos.cc/logos/ethereum-eth-logo.png?v=026',
+  Polygon: 'https://cryptologos.cc/logos/polygon-matic-logo.png?v=026',
+  Polkadot: 'https://cryptologos.cc/logos/polkadot-new-dot-logo.png?v=026',
+  Solana: 'https://cryptologos.cc/logos/solana-sol-logo.png?v=026',
+}
 
 export default function Main({ tab }: { tab: string }) {
   const favorites = useSelector((state: RootState) => state.favorites.favorites)
   const dispatch = useDispatch()
+
+  const [selectedUnit, setSelectedUnit] = useState('Bitcoin')
+  const [cryptocurrencies, setCryptocurrencies] = useState<any[]>([])
+  const [inputValues, setInputValues] = useState<{
+    [key: string]: { amount: string; comment: string }
+  }>({})
+
+  useEffect(() => {
+    const fetchTokens = async () => {
+      const tokens = await getTokens()
+      setCryptocurrencies(tokens)
+      console.log('FETCHED TOKENS: ', tokens)
+    }
+
+    // Fetch tokens on initial load
+    fetchTokens()
+
+    // Set an interval to fetch tokens every 10 minutes (600000ms)
+    const interval = setInterval(() => {
+      fetchTokens()
+    }, 600000)
+
+    // Cleanup the interval on component unmount
+    return () => clearInterval(interval)
+  }, [])
+
+  const getTokenIcon = (unit: string) => {
+    return icons[unit] || '/default-icon.png'
+  }
 
   // Filter cryptocurrencies based on favorites when in "My Cryptocurrencies"
   const favoriteCryptos = cryptocurrencies.filter((_, index) =>
@@ -99,6 +123,66 @@ export default function Main({ tab }: { tab: string }) {
   const prevIndex = selected > 0 ? selected - 1 : null
   const nextIndex = selected < currentList.length - 1 ? selected + 1 : null
 
+  const handleSubmit = async () => {
+    try {
+      const selectedCryptoUnit = currentList[selected]?.unit
+      console.log('CURRENT TOKEN: ', selectedCryptoUnit)
+
+      if (!selectedCryptoUnit) {
+        alert('Please select a cryptocurrency')
+        return
+      }
+
+      const selectedInput = inputValues[selectedUnit]
+
+      if (!selectedInput || !selectedInput.amount || !selectedInput.comment) {
+        alert('All fields are required')
+        return
+      }
+
+      if (isNaN(Number(selectedInput.amount))) {
+        alert('Amount must be a valid number')
+        return
+      }
+
+      const createTokenTxDto: CreateTokenTxDto = {
+        amount: Number(selectedInput.amount),
+        comment: selectedInput.comment,
+      }
+
+      await saveTokenTransaction(selectedCryptoUnit, createTokenTxDto)
+
+      setInputValues((prev) => ({
+        ...prev,
+        [selectedCryptoUnit]: { amount: '', comment: '' },
+      }))
+    } catch (error) {
+      console.error('Error during transaction submission:', error)
+    }
+  }
+
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newAmount = e.target.value
+    setInputValues((prev) => ({
+      ...prev,
+      [selectedUnit]: {
+        ...prev[selectedUnit],
+        amount: newAmount,
+      },
+    }))
+  }
+
+  const handleCommentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newComment = e.target.value
+    setInputValues((prev) => ({
+      ...prev,
+      [selectedUnit]: {
+        ...prev[selectedUnit],
+        comment: newComment,
+      },
+    }))
+  }
+
   return (
     <Box
       component="main"
@@ -138,21 +222,21 @@ export default function Main({ tab }: { tab: string }) {
             <CardContent>
               <Box display="flex" justifyContent="center" alignItems="center">
                 <img
-                  src={currentList[prevIndex].icon}
-                  alt={currentList[prevIndex].name}
+                  src={getTokenIcon(currentList[prevIndex].unit)}
+                  alt={currentList[prevIndex].unit}
                   width={50}
                   height={50}
                 />
               </Box>
 
               <Typography sx={{ mt: 2 }} variant="h6">
-                {currentList[prevIndex].name}
+                {currentList[prevIndex].unit}
               </Typography>
               <Typography sx={{ mt: 2, fontSize: '13px', color: '#ccc' }}>
                 Current price: {currentList[prevIndex].price}
               </Typography>
               <Typography sx={{ fontSize: '13px', color: '#ccc' }}>
-                Last check: {currentList[prevIndex].lastCheck}
+                Last check: {currentList[prevIndex].priceUpdateDate}
               </Typography>
 
               <IconButton
@@ -176,10 +260,7 @@ export default function Main({ tab }: { tab: string }) {
                 <div className="">
                   <div className="w-[350px] h-[360px] flex flex-col mb-[-40px] px-7">
                     <Typography>
-                      Value in USD:{' '}
-                      {parseFloat(
-                        currentList[prevIndex].price.replace('$', ''),
-                      ) * 10}
+                      Value in USD: ${currentList[prevIndex].value}
                     </Typography>
 
                     <Typography sx={{ mt: 2 }}>Amount:</Typography>
@@ -212,33 +293,25 @@ export default function Main({ tab }: { tab: string }) {
                     />
 
                     <Typography>Unit:</Typography>
-                    <TextField
+                    <Select
+                      value={currentList[prevIndex].unit}
+                      disabled
+                      fullWidth
                       sx={{
                         backgroundColor: '#545454',
                         borderRadius: '10px',
                         height: '40px',
-                        '& .MuiOutlinedInput-root': {
+                        '& .MuiSelect-root': {
                           height: '100%',
-                          borderRadius: '10px',
-                          '& fieldset': {
-                            borderColor: '#979695',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#979695',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#979695',
-                          },
-                        },
-                        '& .MuiInputBase-input': {
-                          height: '100%',
-                          padding: '12px',
                         },
                       }}
-                      fullWidth
-                      margin="dense"
-                      disabled
-                    />
+                    >
+                      {favoriteCryptos.map((item) => (
+                        <MenuItem key={item.unit} value={item.unit}>
+                          {item.unit}
+                        </MenuItem>
+                      ))}
+                    </Select>
 
                     <Typography>Comment:</Typography>
                     <TextField
@@ -298,31 +371,44 @@ export default function Main({ tab }: { tab: string }) {
           <CardContent>
             <Box display="flex" justifyContent="center" alignItems="center">
               <img
-                src={currentList[selected].icon}
-                alt={currentList[selected].name}
+                src={getTokenIcon(currentList[selected].unit)}
+                alt={currentList[selected].unit}
                 width={50}
                 height={50}
               />
             </Box>
 
             <Typography sx={{ mt: 2 }} variant="h6">
-              {currentList[selected].name}
+              {currentList[selected].unit}
             </Typography>
             <Typography sx={{ mt: 2, fontSize: '13px', color: '#ccc' }}>
               Current price: {currentList[selected].price}
             </Typography>
             <Typography sx={{ fontSize: '13px', color: '#ccc' }}>
-              Last check: {currentList[selected].lastCheck}
+              Last check: {currentList[selected].priceUpdateDate}
             </Typography>
 
             <IconButton
-              onClick={() =>
+              onClick={async () => {
+                const newFavoriteStatus = !favorites.includes(
+                  cryptocurrencies.indexOf(currentList[selected]),
+                )
+
+                const updateFav: UpdateFavoriteDto = {
+                  favorite: newFavoriteStatus,
+                }
+
+                await updateFavoriteStatus(
+                  currentList[selected].unit,
+                  updateFav,
+                )
+
                 dispatch(
                   toggleFavorite(
                     cryptocurrencies.indexOf(currentList[selected]),
                   ),
                 )
-              }
+              }}
               color="error"
               sx={{
                 position: 'absolute',
@@ -343,9 +429,11 @@ export default function Main({ tab }: { tab: string }) {
               <div className="">
                 <div className="w-[350px] h-[360px] flex flex-col mb-[-40px] px-7">
                   <Typography>
-                    Value in USD:{' '}
-                    {parseFloat(currentList[selected].price.replace('$', '')) *
-                      10}
+                    Value in USD: $
+                    {(
+                      Number(inputValues[selectedUnit]?.amount || 0) *
+                      Number(currentList[selected].price)
+                    ).toFixed(2)}
                   </Typography>
 
                   <Typography sx={{ mt: 2 }}>Amount:</Typography>
@@ -374,35 +462,41 @@ export default function Main({ tab }: { tab: string }) {
                     }}
                     fullWidth
                     margin="dense"
+                    value={inputValues[selectedUnit]?.amount || ''}
+                    onChange={handleAmountChange}
                   />
 
                   <Typography>Unit:</Typography>
-                  <TextField
+                  <Select
+                    value={currentList[selected].unit}
+                    onChange={(e) => {
+                      const newUnit = e.target.value
+                      setSelectedUnit(newUnit)
+
+                      // Find the index of the selected unit from the 'crypto' array
+                      const newIndex = currentList.findIndex(
+                        (item) => item.unit === newUnit,
+                      )
+
+                      // Update the selected card index
+                      setSelected(newIndex)
+                    }}
+                    fullWidth
                     sx={{
                       backgroundColor: '#545454',
                       borderRadius: '10px',
                       height: '40px',
-                      '& .MuiOutlinedInput-root': {
+                      '& .MuiSelect-root': {
                         height: '100%',
-                        borderRadius: '10px',
-                        '& fieldset': {
-                          borderColor: '#979695',
-                        },
-                        '&:hover fieldset': {
-                          borderColor: '#979695',
-                        },
-                        '&.Mui-focused fieldset': {
-                          borderColor: '#979695',
-                        },
-                      },
-                      '& .MuiInputBase-input': {
-                        height: '100%',
-                        padding: '12px',
                       },
                     }}
-                    fullWidth
-                    margin="dense"
-                  />
+                  >
+                    {favoriteCryptos.map((item) => (
+                      <MenuItem key={item.unit} value={item.unit}>
+                        {item.unit}
+                      </MenuItem>
+                    ))}
+                  </Select>
 
                   <Typography>Comment:</Typography>
                   <TextField
@@ -430,10 +524,16 @@ export default function Main({ tab }: { tab: string }) {
                     }}
                     fullWidth
                     margin="dense"
+                    value={inputValues[selectedUnit]?.comment || ''}
+                    onChange={handleCommentChange}
                   />
                 </div>
                 <div className="flex justify-end mb-6">
-                  <Button variant="contained" color="success">
+                  <Button
+                    variant="contained"
+                    color="success"
+                    onClick={handleSubmit}
+                  >
                     Submit
                   </Button>
                 </div>
@@ -464,21 +564,21 @@ export default function Main({ tab }: { tab: string }) {
             <CardContent>
               <Box display="flex" justifyContent="center" alignItems="center">
                 <img
-                  src={currentList[nextIndex].icon}
-                  alt={currentList[nextIndex].name}
+                  src={getTokenIcon(currentList[nextIndex].unit)}
+                  alt={currentList[nextIndex].unit}
                   width={50}
                   height={50}
                 />
               </Box>
 
               <Typography sx={{ mt: 2 }} variant="h6">
-                {currentList[nextIndex].name}
+                {currentList[nextIndex].unit}
               </Typography>
               <Typography sx={{ mt: 2, fontSize: '13px', color: '#ccc' }}>
                 Current price: {currentList[nextIndex].price}
               </Typography>
               <Typography sx={{ fontSize: '13px', color: '#ccc' }}>
-                Last check: {currentList[nextIndex].lastCheck}
+                Last check: {currentList[nextIndex].priceUpdateDate}
               </Typography>
 
               {/* Heart button for both tabs */}
@@ -503,10 +603,7 @@ export default function Main({ tab }: { tab: string }) {
                 <div className="">
                   <div className="w-[350px] h-[360px] flex flex-col mb-[-40px] px-7">
                     <Typography>
-                      Value in USD:{' '}
-                      {parseFloat(
-                        currentList[nextIndex].price.replace('$', ''),
-                      ) * 10}
+                      Value in USD: ${currentList[nextIndex].value}
                     </Typography>
 
                     <Typography sx={{ mt: 2 }}>Amount:</Typography>
@@ -539,33 +636,25 @@ export default function Main({ tab }: { tab: string }) {
                     />
 
                     <Typography>Unit:</Typography>
-                    <TextField
+                    <Select
+                      value={currentList[nextIndex].unit}
+                      disabled
+                      fullWidth
                       sx={{
                         backgroundColor: '#545454',
                         borderRadius: '10px',
                         height: '40px',
-                        '& .MuiOutlinedInput-root': {
+                        '& .MuiSelect-root': {
                           height: '100%',
-                          borderRadius: '10px',
-                          '& fieldset': {
-                            borderColor: '#979695',
-                          },
-                          '&:hover fieldset': {
-                            borderColor: '#979695',
-                          },
-                          '&.Mui-focused fieldset': {
-                            borderColor: '#979695',
-                          },
-                        },
-                        '& .MuiInputBase-input': {
-                          height: '100%',
-                          padding: '12px',
                         },
                       }}
-                      fullWidth
-                      margin="dense"
-                      disabled
-                    />
+                    >
+                      {favoriteCryptos.map((item) => (
+                        <MenuItem key={item.unit} value={item.unit}>
+                          {item.unit}
+                        </MenuItem>
+                      ))}
+                    </Select>
 
                     <Typography>Comment:</Typography>
                     <TextField
